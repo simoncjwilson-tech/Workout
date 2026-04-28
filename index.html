@@ -739,6 +739,16 @@
       <span class="field-label">Subtitle (optional)</span>
       <input type="text" id="edit-subtitle" placeholder="e.g. Chest · Triceps" autocapitalize="words">
     </div>
+    <div class="field">
+      <span class="field-label">Muscle group (for Craft sync)</span>
+      <select id="edit-muscle-group" style="width:100%; padding:12px 14px; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; font-family:'Fraunces',serif; font-size:16px; color:var(--text); -webkit-appearance:none; appearance:none;">
+        <option value="">— None —</option>
+        <option value="Upper Body">Upper Body</option>
+        <option value="Lower Body">Lower Body</option>
+        <option value="Core">Core</option>
+        <option value="Full Body">Full Body</option>
+      </select>
+    </div>
 
     <div class="section-label" style="margin-top: 24px;">Exercises</div>
     <div id="editor-exercises"></div>
@@ -766,8 +776,9 @@
 
     <div class="editor-actions">
       <button class="btn-secondary" onclick="copySummary()">Copy for Craft</button>
-      <button class="btn-primary" onclick="finishAndSave()">Save & Done</button>
+      <button class="btn-secondary" onclick="openCraftTracker()">Open Tracker</button>
     </div>
+    <button class="btn-primary" onclick="finishAndSave()" style="width:100%; margin-top:10px; padding:14px;">Save & Done</button>
   </div>
 
   <!-- ============ SETTINGS SCREEN ============ -->
@@ -780,7 +791,10 @@
       <div style="width: 40px;"></div>
     </div>
 
-    <div class="section-label">Data</div>
+    <div class="section-label">Cloud Sync</div>
+    <button class="menu-item" onclick="showSyncScreen()"><span id="sync-menu-status">Configure sync</span> <span class="arrow">→</span></button>
+
+    <div class="section-label" style="margin-top: 24px;">Data</div>
     <button class="menu-item" onclick="exportData()">Export all data <span class="arrow">→</span></button>
     <button class="menu-item" onclick="showImport()">Import data <span class="arrow">→</span></button>
 
@@ -792,6 +806,52 @@
     <div style="padding: 14px 16px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6;">
       <div>Lift v1.0</div>
       <div id="storage-info" style="margin-top: 6px;"></div>
+    </div>
+  </div>
+
+  <!-- ============ SYNC SCREEN ============ -->
+  <div class="screen" id="screen-sync">
+    <div class="top-bar">
+      <button class="icon-btn" onclick="showSettings()" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <h1 style="font-size: 22px;">Cloud Sync</h1>
+      <div style="width: 40px;"></div>
+    </div>
+
+    <div style="padding: 14px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; color: var(--text-dim); font-family: 'Fraunces', serif; font-size: 14px; line-height: 1.5; margin-bottom: 20px;">
+      Backs up your routines and history to a private GitHub Gist after every workout. Restores automatically if local data is lost. Requires a GitHub Personal Access Token with <em>gist</em> scope only.
+    </div>
+
+    <div class="field">
+      <span class="field-label">GitHub Personal Access Token</span>
+      <input type="text" id="sync-token" placeholder="ghp_..." autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <span class="field-label">Gist ID</span>
+      <input type="text" id="sync-gist-id" placeholder="32-character hex string" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="editor-actions">
+      <button class="btn-secondary" onclick="showSettings()">Cancel</button>
+      <button class="btn-primary" onclick="saveSyncSettings()">Save</button>
+    </div>
+
+    <div class="section-label" style="margin-top: 28px;">Status</div>
+    <div id="sync-status" style="padding: 14px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.7; margin-bottom: 16px;"></div>
+
+    <button class="menu-item" onclick="manualPush()">Push to gist now <span class="arrow">↑</span></button>
+    <button class="menu-item" onclick="manualPull()">Restore from gist <span class="arrow">↓</span></button>
+    <button class="menu-item" onclick="confirmDisableSync()" style="color: var(--danger);">Disable sync</button>
+
+    <div class="section-label" style="margin-top: 24px;">Setup</div>
+    <div style="padding: 14px 16px; color: var(--text-muted); font-family: 'Fraunces', serif; font-size: 13px; line-height: 1.6;">
+      <ol style="padding-left: 18px; margin: 0;">
+        <li style="margin-bottom: 6px;">github.com/settings/tokens — generate a Classic token with only the <em>gist</em> scope</li>
+        <li style="margin-bottom: 6px;">gist.github.com — create a new <em>secret</em> gist with filename <em>lift.json</em> and content <em>{}</em></li>
+        <li style="margin-bottom: 6px;">Copy the gist ID from its URL (the long hex string)</li>
+        <li>Paste both above and tap Save</li>
+      </ol>
     </div>
   </div>
 
@@ -839,12 +899,14 @@
 // STORAGE
 // ============================================================================
 const STORAGE_KEY = 'lift_v1';
+const SYNC_KEY = 'lift_sync_v1';
 const DEFAULT_STATE = {
   routines: [
     {
       id: 'r_chest',
       name: 'Chest',
       subtitle: 'Chest · Triceps',
+      muscleGroup: 'Upper Body',
       exercises: [
         { id: 'e1', name: 'Barbell Bench Press', cue: 'Feet planted, slight arch', sets: 4, repsMin: 4, repsMax: 6, defaultWeight: 40, restSec: 120 },
         { id: 'e2', name: 'Incline Dumbbell Press', cue: 'Bench at 30°, control descent', sets: 3, repsMin: 4, repsMax: 6, defaultWeight: 18, restSec: 90 },
@@ -854,7 +916,8 @@ const DEFAULT_STATE = {
       ]
     }
   ],
-  sessions: []
+  sessions: [],
+  lastSavedAt: null
 };
 
 function loadState() {
@@ -871,15 +934,142 @@ function loadState() {
   }
 }
 
-function saveState(s) {
+function saveState(s, opts = {}) {
   try {
+    if (!opts.skipTimestamp) {
+      s.lastSavedAt = new Date().toISOString();
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    if (!opts.skipSync) {
+      schedulePush();
+    }
   } catch (e) {
     toast('Save failed: ' + e.message);
   }
 }
 
 let state = loadState();
+
+// ============================================================================
+// GIST SYNC
+// ============================================================================
+function loadSyncConfig() {
+  try {
+    const raw = localStorage.getItem(SYNC_KEY);
+    if (!raw) return { token: '', gistId: '', lastPushAt: null, lastPullAt: null, pendingPush: false };
+    return JSON.parse(raw);
+  } catch (e) {
+    return { token: '', gistId: '', lastPushAt: null, lastPullAt: null, pendingPush: false };
+  }
+}
+
+function saveSyncConfig(cfg) {
+  try {
+    localStorage.setItem(SYNC_KEY, JSON.stringify(cfg));
+  } catch (e) {
+    console.error('Sync config save failed', e);
+  }
+}
+
+let syncConfig = loadSyncConfig();
+let pushTimeout = null;
+
+function syncEnabled() {
+  return !!(syncConfig.token && syncConfig.gistId);
+}
+
+async function pushToGist() {
+  if (!syncEnabled()) return { ok: false, reason: 'not configured' };
+  try {
+    const body = {
+      files: {
+        'lift.json': { content: JSON.stringify(state, null, 2) }
+      }
+    };
+    const res = await fetch(`https://api.github.com/gists/${syncConfig.gistId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `token ${syncConfig.token}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return { ok: false, reason: `${res.status}: ${text.slice(0, 100)}` };
+    }
+    syncConfig.lastPushAt = new Date().toISOString();
+    syncConfig.pendingPush = false;
+    saveSyncConfig(syncConfig);
+    return { ok: true };
+  } catch (e) {
+    syncConfig.pendingPush = true;
+    saveSyncConfig(syncConfig);
+    return { ok: false, reason: e.message };
+  }
+}
+
+async function pullFromGist() {
+  if (!syncEnabled()) return { ok: false, reason: 'not configured' };
+  try {
+    const res = await fetch(`https://api.github.com/gists/${syncConfig.gistId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${syncConfig.token}`,
+        'Accept': 'application/vnd.github+json'
+      },
+      cache: 'no-cache'
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return { ok: false, reason: `${res.status}: ${text.slice(0, 100)}` };
+    }
+    const data = await res.json();
+    const file = data.files && data.files['lift.json'];
+    if (!file || !file.content) return { ok: false, reason: 'lift.json not found in gist' };
+    const parsed = JSON.parse(file.content);
+    if (!parsed.routines) return { ok: false, reason: 'invalid state shape' };
+    syncConfig.lastPullAt = new Date().toISOString();
+    saveSyncConfig(syncConfig);
+    return { ok: true, state: parsed };
+  } catch (e) {
+    return { ok: false, reason: e.message };
+  }
+}
+
+function schedulePush() {
+  if (!syncEnabled()) return;
+  clearTimeout(pushTimeout);
+  pushTimeout = setTimeout(async () => {
+    const res = await pushToGist();
+    if (!res.ok) console.warn('Gist push failed:', res.reason);
+  }, 800); // small debounce
+}
+
+// On startup: try to reconcile with gist. If gist is newer than local, replace local.
+async function reconcileOnStartup() {
+  if (!syncEnabled()) return;
+  const res = await pullFromGist();
+  if (!res.ok) {
+    console.warn('Startup pull failed:', res.reason);
+    return;
+  }
+  const remote = res.state;
+  const localTs = state.lastSavedAt ? new Date(state.lastSavedAt).getTime() : 0;
+  const remoteTs = remote.lastSavedAt ? new Date(remote.lastSavedAt).getTime() : 0;
+
+  // Heuristic: if remote is strictly newer, OR local has no data and remote does, restore.
+  const localEmpty = (state.sessions.length === 0 && state.routines.length <= 1);
+  const remoteHasMore = (remote.sessions.length > state.sessions.length);
+
+  if (remoteTs > localTs || (localEmpty && remoteHasMore)) {
+    state = remote;
+    saveState(state, { skipTimestamp: true, skipSync: true });
+    renderHome();
+    toast(`Restored from cloud (${remote.sessions.length} sessions)`);
+  }
+}
 
 // ============================================================================
 // UTILS
@@ -994,6 +1184,7 @@ function newRoutine() {
   editingRoutineId = null;
   document.getElementById('edit-name').value = '';
   document.getElementById('edit-subtitle').value = '';
+  document.getElementById('edit-muscle-group').value = '';
   document.getElementById('editor-exercises').innerHTML = '';
   addEditorExercise();
   document.getElementById('delete-routine-btn').style.display = 'none';
@@ -1006,6 +1197,7 @@ function editRoutine(id) {
   editingRoutineId = id;
   document.getElementById('edit-name').value = r.name;
   document.getElementById('edit-subtitle').value = r.subtitle || '';
+  document.getElementById('edit-muscle-group').value = r.muscleGroup || '';
   document.getElementById('editor-exercises').innerHTML = '';
   r.exercises.forEach(ex => addEditorExercise(ex));
   document.getElementById('delete-routine-btn').style.display = 'block';
@@ -1065,6 +1257,7 @@ function saveRoutine() {
   const name = document.getElementById('edit-name').value.trim();
   if (!name) { toast('Name is required'); return; }
   const subtitle = document.getElementById('edit-subtitle').value.trim();
+  const muscleGroup = document.getElementById('edit-muscle-group').value;
   const exNodes = document.querySelectorAll('#editor-exercises .editor-exercise');
   if (!exNodes.length) { toast('Add at least one exercise'); return; }
 
@@ -1088,9 +1281,9 @@ function saveRoutine() {
 
   if (editingRoutineId) {
     const r = state.routines.find(x => x.id === editingRoutineId);
-    r.name = name; r.subtitle = subtitle; r.exercises = exercises;
+    r.name = name; r.subtitle = subtitle; r.muscleGroup = muscleGroup; r.exercises = exercises;
   } else {
-    state.routines.push({ id: uid(), name, subtitle, exercises });
+    state.routines.push({ id: uid(), name, subtitle, muscleGroup, exercises });
   }
   saveState(state);
   showHome();
@@ -1130,6 +1323,7 @@ function startSession(routineId) {
     routineId: routine.id,
     routineName: routine.name,
     routineSubtitle: routine.subtitle,
+    muscleGroup: routine.muscleGroup || '',
     startedAt: new Date().toISOString(),
     finishedAt: null,
     sets: []
@@ -1353,6 +1547,7 @@ function finishAndSave() {
     id: currentSession.id,
     routineId: currentSession.routineId,
     routineName: currentSession.routineName,
+    muscleGroup: currentSession.muscleGroup,
     startedAt: currentSession.startedAt,
     finishedAt: currentSession.finishedAt,
     sets: currentSession.sets.map(x => ({
@@ -1376,11 +1571,16 @@ function finishAndSave() {
 function copySummary() {
   if (!currentSession) return;
   const s = currentSession;
-  const date = new Date(s.startedAt).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const elapsedMin = Math.floor((new Date(s.finishedAt) - new Date(s.startedAt)) / 60000);
-  const completed = s.sets.filter(x => x.completed);
-  const volume = completed.reduce((acc, x) => acc + (x.actualWeight * x.actualReps), 0);
+  const dateISO = new Date(s.startedAt).toISOString().slice(0, 10);
+  const dateHuman = new Date(s.startedAt).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const elapsedSec = Math.floor((new Date(s.finishedAt) - new Date(s.startedAt)) / 1000);
+  const hh = Math.floor(elapsedSec / 3600);
+  const mm = Math.floor((elapsedSec % 3600) / 60);
+  const ss = elapsedSec % 60;
+  const timeStr = `${hh}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  const elapsedMin = Math.floor(elapsedSec / 60);
 
+  // Group sets by exercise
   const groups = {};
   const order = [];
   s.sets.forEach(set => {
@@ -1388,28 +1588,89 @@ function copySummary() {
     groups[set.exerciseId].push(set);
   });
 
-  let md = `# ${s.routineName} — ${date}\n\n`;
-  md += `**Duration:** ${elapsedMin} min  \n`;
-  md += `**Sets completed:** ${completed.length}/${s.sets.length}  \n`;
-  md += `**Total volume:** ${Math.round(volume)} kg\n\n`;
-  md += `## Exercises\n\n`;
-  order.forEach(exId => {
+  // Compact one-line notes for the collection Notes field
+  const noteParts = order.map(exId => {
     const sets = groups[exId];
     const first = sets[0];
-    md += `**${first.exerciseName}**\n`;
-    sets.forEach(x => {
-      md += `- Set ${x.setNumber}: ${x.actualWeight}kg × ${x.actualReps} reps${x.completed ? '' : '  *(skipped)*'}\n`;
-    });
-    md += `\n`;
-  });
+    const done = sets.filter(x => x.completed);
+    if (!done.length) return null;
+    const detail = done.map(x => {
+      if (x.actualWeight > 0) return `${x.actualWeight}kg×${x.actualReps}`;
+      return `${x.actualReps}`;
+    }).join(', ');
+    return `${first.exerciseName}: ${detail}`;
+  }).filter(Boolean).join(' | ');
 
-  navigator.clipboard.writeText(md).then(() => {
-    toast('Copied to clipboard');
+  const muscleGroup = s.muscleGroup || inferMuscleGroup(s.routineName);
+  const completed = s.sets.filter(x => x.completed);
+  const volume = Math.round(completed.reduce((acc, x) => acc + (x.actualWeight * x.actualReps), 0));
+
+  // Per-exercise breakdown (human-readable)
+  const breakdownLines = order.map(exId => {
+    const sets = groups[exId];
+    const first = sets[0];
+    let block = `**${first.exerciseName}**`;
+    sets.forEach(x => {
+      const status = x.completed ? '' : ' (skipped)';
+      if (x.actualWeight > 0) {
+        block += `\n- Set ${x.setNumber}: ${x.actualWeight}kg × ${x.actualReps} reps${status}`;
+      } else {
+        block += `\n- Set ${x.setNumber}: ${x.actualReps} reps${status}`;
+      }
+    });
+    return block;
+  }).join('\n\n');
+
+  // Full state JSON for backup (everything, not just this session)
+  const backupJson = JSON.stringify(state, null, 2);
+
+  // Combined payload
+  const payload =
+`━━━ COLLECTION ITEM ━━━
+${s.routineName}
+
+Date: ${dateISO}
+Time: ${timeStr}
+Workout: Strength
+Muscle Group: ${muscleGroup || ''}
+Notes: ${noteParts}
+
+━━━ SESSION BREAKDOWN ━━━
+# ${s.routineName} — ${dateHuman}
+
+Duration: ${elapsedMin} min
+Sets completed: ${completed.length}/${s.sets.length}
+Total volume: ${volume} kg
+
+${breakdownLines}
+
+━━━ BACKUP (full app state) ━━━
+\`\`\`json
+${backupJson}
+\`\`\`
+`;
+
+  navigator.clipboard.writeText(payload).then(() => {
+    toast('Copied — paste into Fitness Tracker');
   }).catch(() => {
-    showModal('Copy manually', 'Couldn\'t access clipboard. Copy the text below:', md, [
+    showModal('Copy manually', 'Couldn\'t access clipboard. Copy the text below:', payload, [
       { label: 'Done', primary: true, action: closeModal }
     ]);
   });
+}
+
+function inferMuscleGroup(routineName) {
+  const n = (routineName || '').toLowerCase();
+  if (/chest|arm|back|shoulder|bicep|tricep|push|pull/.test(n)) return 'Upper Body';
+  if (/leg|glute|quad|hamstring|calf|squat/.test(n)) return 'Lower Body';
+  if (/core|abs|plank/.test(n)) return 'Core';
+  if (/full body|total body/.test(n)) return 'Full Body';
+  return '';
+}
+
+function openCraftTracker() {
+  // Fixed deeplink to the user's Fitness Tracker doc
+  window.location.href = 'craftdocs://open?blockId=2DEE8D4B-DD23-4C62-9DBD-E3804A56CC4F&spaceId=d16fb396-2215-0be5-0d97-645c25b1d84a';
 }
 
 // ============================================================================
@@ -1418,7 +1679,83 @@ function copySummary() {
 function showSettings() {
   document.getElementById('storage-info').textContent =
     `${state.routines.length} routines, ${state.sessions.length} sessions saved`;
+  const syncStatus = document.getElementById('sync-menu-status');
+  if (syncStatus) {
+    if (syncEnabled()) {
+      const last = syncConfig.lastPushAt;
+      syncStatus.textContent = last ? `Synced ${fmtRelativeDate(last)}` : 'Sync configured';
+    } else {
+      syncStatus.textContent = 'Configure sync';
+    }
+  }
   showScreen('screen-settings');
+}
+
+function showSyncScreen() {
+  document.getElementById('sync-token').value = syncConfig.token || '';
+  document.getElementById('sync-gist-id').value = syncConfig.gistId || '';
+  renderSyncStatus();
+  showScreen('screen-sync');
+}
+
+function renderSyncStatus() {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  const lines = [];
+  lines.push(`Configured: ${syncEnabled() ? 'yes' : 'no'}`);
+  lines.push(`Last push: ${syncConfig.lastPushAt ? fmtRelativeDate(syncConfig.lastPushAt) : 'never'}`);
+  lines.push(`Last pull: ${syncConfig.lastPullAt ? fmtRelativeDate(syncConfig.lastPullAt) : 'never'}`);
+  if (syncConfig.pendingPush) lines.push(`<span style="color: var(--warn);">Pending push (last attempt failed)</span>`);
+  el.innerHTML = lines.join('<br>');
+}
+
+function saveSyncSettings() {
+  const token = document.getElementById('sync-token').value.trim();
+  const gistId = document.getElementById('sync-gist-id').value.trim();
+  if (token && !gistId) { toast('Gist ID required'); return; }
+  if (gistId && !token) { toast('Token required'); return; }
+  syncConfig.token = token;
+  syncConfig.gistId = gistId;
+  saveSyncConfig(syncConfig);
+  toast('Sync settings saved');
+  showSettings();
+}
+
+async function manualPush() {
+  if (!syncEnabled()) { toast('Configure sync first'); return; }
+  toast('Pushing...');
+  const res = await pushToGist();
+  if (res.ok) {
+    toast('Pushed to gist');
+  } else {
+    toast('Push failed: ' + res.reason, 4000);
+  }
+  renderSyncStatus();
+}
+
+async function manualPull() {
+  if (!syncEnabled()) { toast('Configure sync first'); return; }
+  if (!confirm('Replace local data with gist contents? Current local data will be overwritten.')) return;
+  toast('Pulling...');
+  const res = await pullFromGist();
+  if (res.ok) {
+    state = res.state;
+    if (!state.sessions) state.sessions = [];
+    saveState(state, { skipTimestamp: true, skipSync: true });
+    toast(`Restored ${state.sessions.length} sessions`);
+    renderHome();
+  } else {
+    toast('Pull failed: ' + res.reason, 4000);
+  }
+  renderSyncStatus();
+}
+
+function confirmDisableSync() {
+  if (!confirm('Disable sync and clear stored token? Local data will be kept.')) return;
+  syncConfig = { token: '', gistId: '', lastPushAt: null, lastPullAt: null, pendingPush: false };
+  saveSyncConfig(syncConfig);
+  toast('Sync disabled');
+  showSettings();
 }
 
 function exportData() {
@@ -1522,6 +1859,7 @@ function closeModal() {
 // INIT
 // ============================================================================
 showHome();
+reconcileOnStartup();
 </script>
 </body>
 </html>
