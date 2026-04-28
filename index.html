@@ -1242,9 +1242,6 @@ function toggleSet(idx) {
   if (!currentSession) return;
   const set = currentSession.sets[idx];
   set.completed = !set.completed;
-  if (set.completed && set.restSec > 0) {
-    startRest(set.restSec);
-  }
   renderSession();
 }
 
