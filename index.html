@@ -28,7 +28,7 @@
     --danger: #c54a3d;
     --warn: #d68a3a;
     --safe-top: env(safe-area-inset-top, 0px);
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -59,7 +59,7 @@
 
   /* ============ APP SHELL ============ */
   .app { max-width: 540px; margin: 0 auto; padding: 0 20px; }
-  .screen { display: none; padding: 20px 0 120px; }
+  .screen { display: none; padding: 20px 0 140px; }
   .screen.active { display: block; }
 
   /* ============ HEADER ============ */
@@ -421,7 +421,10 @@
   .finish-bar {
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    padding: 14px 20px calc(14px + var(--safe-bottom));
+    padding-top: 14px;
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-bottom: 50px;
     background: linear-gradient(180deg, transparent, var(--bg) 24%);
     display: none;
     z-index: 50;
