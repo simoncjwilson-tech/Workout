@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Lift"> 
+<meta name="apple-mobile-web-app-title" content="Lift">
 <meta name="theme-color" content="#0a0a0a">
 <title>Lift</title>
 <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%230a0a0a'/><text x='50%25' y='58%25' text-anchor='middle' font-family='Georgia,serif' font-size='110' font-weight='700' fill='%23d4a437'>L</text></svg>">
@@ -804,7 +804,7 @@
 
     <div class="section-label" style="margin-top: 24px;">About</div>
     <div style="padding: 14px 16px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6;">
-      <div>Lift v1.0</div>
+      <div>Lift v1.2 — Cloud Sync</div>
       <div id="storage-info" style="margin-top: 6px;"></div>
     </div>
   </div>
@@ -934,25 +934,7 @@ function loadState() {
   }
 }
 
-function saveState(s, opts = {}) {
-  try {
-    if (!opts.skipTimestamp) {
-      s.lastSavedAt = new Date().toISOString();
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-    if (!opts.skipSync) {
-      schedulePush();
-    }
-  } catch (e) {
-    toast('Save failed: ' + e.message);
-  }
-}
-
-let state = loadState();
-
-// ============================================================================
-// GIST SYNC
-// ============================================================================
+// Sync config must be declared before saveState because saveState references it via schedulePush
 function loadSyncConfig() {
   try {
     const raw = localStorage.getItem(SYNC_KEY);
@@ -974,6 +956,25 @@ function saveSyncConfig(cfg) {
 let syncConfig = loadSyncConfig();
 let pushTimeout = null;
 
+function saveState(s, opts = {}) {
+  try {
+    if (!opts.skipTimestamp) {
+      s.lastSavedAt = new Date().toISOString();
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    if (!opts.skipSync) {
+      schedulePush();
+    }
+  } catch (e) {
+    toast('Save failed: ' + e.message);
+  }
+}
+
+let state = loadState();
+
+// ============================================================================
+// GIST SYNC
+// ============================================================================
 function syncEnabled() {
   return !!(syncConfig.token && syncConfig.gistId);
 }
