@@ -1667,7 +1667,9 @@ function copySummary() {
 
   // Combined payload
   const payload =
-`━━━ COLLECTION ITEM ━━━
+`Add this to my fitness tracker.
+
+━━━ COLLECTION ITEM ━━━
 ${s.routineName}
 
 Date: ${dateISO}
@@ -1692,7 +1694,7 @@ ${backupJson}
 `;
 
   navigator.clipboard.writeText(payload).then(() => {
-    toast('Copied — paste into Fitness Tracker');
+    toast('Copied — paste into Claude');
   }).catch(() => {
     showModal('Copy manually', 'Couldn\'t access clipboard. Copy the text below:', payload, [
       { label: 'Done', primary: true, action: closeModal }
