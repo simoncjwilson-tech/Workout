@@ -59,7 +59,7 @@
 
   /* ============ APP SHELL ============ */
   .app { max-width: 540px; margin: 0 auto; padding: 0 20px; }
-  .screen { display: none; padding: 20px 0 140px; }
+  .screen { display: none; padding: 20px 0 160px; }
   .screen.active { display: block; }
 
   /* ============ HEADER ============ */
@@ -119,6 +119,17 @@
     font-size: 26px;
     letter-spacing: -0.01em;
     margin-bottom: 4px;
+  }
+  .next-due-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #a78bfa;
+    margin-left: 10px;
+    vertical-align: middle;
+    box-shadow: 0 0 8px rgba(167, 139, 250, 0.5);
+    transform: translateY(-2px);
   }
   .routine-card .subtitle {
     font-family: 'JetBrains Mono', monospace;
@@ -421,10 +432,7 @@
   .finish-bar {
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    padding-top: 14px;
-    padding-left: 20px;
-    padding-right: 20px;
-    padding-bottom: 50px;
+    padding: 14px 20px 70px;
     background: linear-gradient(180deg, transparent, var(--bg) 24%);
     display: none;
     z-index: 50;
@@ -603,7 +611,7 @@
     align-items: flex-end;
     justify-content: center;
     z-index: 200;
-    padding: 0 0 var(--safe-bottom);
+    padding: 0;
   }
   .modal-backdrop.active { display: flex; }
   .modal {
@@ -612,7 +620,7 @@
     border-radius: 18px 18px 0 0;
     width: 100%;
     max-width: 540px;
-    padding: 28px 22px 22px;
+    padding: 28px 22px 70px;
   }
   .modal h3 {
     font-family: 'Fraunces', serif;
@@ -767,7 +775,8 @@
   <!-- ============ SUMMARY SCREEN ============ -->
   <div class="screen" id="screen-summary">
     <div class="top-bar">
-      <h1 style="font-size: 22px;">Workout Complete</h1>
+      <h1 style="font-size: 22px;">Workout Saved</h1>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.18em; color: var(--success); text-transform: uppercase;">✓ Logged</div>
     </div>
     <div class="summary-stats">
       <div class="stat-tile"><div class="label">Time</div><div class="value" id="sum-time">0<span class="unit">m</span></div></div>
@@ -777,11 +786,12 @@
     <div class="section-label">Exercises</div>
     <div class="summary-list" id="summary-list"></div>
 
+    <div class="section-label" style="margin-top: 20px;">Sync to Craft</div>
     <div class="editor-actions">
       <button class="btn-secondary" onclick="copySummary()">Copy for Craft</button>
       <button class="btn-secondary" onclick="openCraftTracker()">Open Tracker</button>
     </div>
-    <button class="btn-primary" onclick="finishAndSave()" style="width:100%; margin-top:10px; padding:14px;">Save & Done</button>
+    <button class="btn-primary" onclick="dismissSummary()" style="width:100%; margin-top:14px; padding:14px;">Done</button>
   </div>
 
   <!-- ============ SETTINGS SCREEN ============ -->
@@ -1148,21 +1158,45 @@ function showHome() {
 // ============================================================================
 // HOME SCREEN
 // ============================================================================
+function lastCompletedSessionForRoutine(routineId) {
+  const sessions = state.sessions.filter(s =>
+    s.routineId === routineId &&
+    s.sets &&
+    s.sets.some(set => set.completed)
+  );
+  if (!sessions.length) return null;
+  return sessions.sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt))[0];
+}
+
+function computeNextDueRoutineId() {
+  if (!state.routines.length) return null;
+  // Routines never properly completed beat everything; among them, pick the first listed
+  const neverDone = state.routines.find(r => !lastCompletedSessionForRoutine(r.id));
+  if (neverDone) return neverDone.id;
+  // Otherwise: routine whose last completed session is oldest
+  const ranked = state.routines
+    .map(r => ({ id: r.id, last: new Date(lastCompletedSessionForRoutine(r.id).finishedAt).getTime() }))
+    .sort((a, b) => a.last - b.last);
+  return ranked[0].id;
+}
+
 function renderHome() {
   const list = document.getElementById('routine-list');
   if (!state.routines.length) {
     list.innerHTML = '<div class="empty-state">No routines yet. Tap below to create one.</div>';
     return;
   }
+  const nextDueId = state.routines.length > 1 ? computeNextDueRoutineId() : null;
   list.innerHTML = state.routines.map(r => {
     const last = lastSessionForRoutine(r.id);
     const exCount = r.exercises.length;
+    const isNextDue = r.id === nextDueId;
     return `
       <button class="routine-card" onclick="startSession('${r.id}')">
         <div class="edit-btn" onclick="event.stopPropagation(); editRoutine('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         </div>
-        <div class="name">${escapeHtml(r.name)}</div>
+        <div class="name">${escapeHtml(r.name)}${isNextDue ? '<span class="next-due-dot" aria-label="Next due"></span>' : ''}</div>
         ${r.subtitle ? `<div class="subtitle">${escapeHtml(r.subtitle)}</div>` : ''}
         <div class="meta">
           <span>${exCount} exercise${exCount === 1 ? '' : 's'}</span>
@@ -1506,6 +1540,30 @@ function finishSession() {
     if (!confirm('No sets completed. Finish anyway?')) return;
   }
   currentSession.finishedAt = new Date().toISOString();
+
+  // Auto-save: persist immediately so the summary screen can't lose data
+  const persisted = {
+    id: currentSession.id,
+    routineId: currentSession.routineId,
+    routineName: currentSession.routineName,
+    muscleGroup: currentSession.muscleGroup,
+    startedAt: currentSession.startedAt,
+    finishedAt: currentSession.finishedAt,
+    sets: currentSession.sets.map(x => ({
+      exerciseId: x.exerciseId,
+      exerciseName: x.exerciseName,
+      setNumber: x.setNumber,
+      plannedReps: x.plannedReps,
+      plannedWeight: x.plannedWeight,
+      actualReps: x.actualReps,
+      actualWeight: x.actualWeight,
+      completed: x.completed
+    }))
+  };
+  state.sessions.push(persisted);
+  saveState(state);
+  toast('Workout saved');
+
   renderSummary();
   showScreen('screen-summary');
   document.getElementById('finish-bar').classList.remove('active');
@@ -1544,38 +1602,17 @@ function renderSummary() {
   }).join('');
 }
 
-function finishAndSave() {
-  if (!currentSession) { showHome(); return; }
-  // Strip transient fields before persisting
-  const persisted = {
-    id: currentSession.id,
-    routineId: currentSession.routineId,
-    routineName: currentSession.routineName,
-    muscleGroup: currentSession.muscleGroup,
-    startedAt: currentSession.startedAt,
-    finishedAt: currentSession.finishedAt,
-    sets: currentSession.sets.map(x => ({
-      exerciseId: x.exerciseId,
-      exerciseName: x.exerciseName,
-      setNumber: x.setNumber,
-      plannedReps: x.plannedReps,
-      plannedWeight: x.plannedWeight,
-      actualReps: x.actualReps,
-      actualWeight: x.actualWeight,
-      completed: x.completed
-    }))
-  };
-  state.sessions.push(persisted);
-  saveState(state);
+function dismissSummary() {
   currentSession = null;
-  toast('Workout saved');
   showHome();
 }
 
 function copySummary() {
   if (!currentSession) return;
   const s = currentSession;
-  const dateISO = new Date(s.startedAt).toISOString().slice(0, 10);
+  const startedLocal = new Date(s.startedAt);
+  // Use local date components, not UTC, so the Date matches the human-readable header
+  const dateISO = `${startedLocal.getFullYear()}-${String(startedLocal.getMonth() + 1).padStart(2, '0')}-${String(startedLocal.getDate()).padStart(2, '0')}`;
   const dateHuman = new Date(s.startedAt).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const elapsedSec = Math.floor((new Date(s.finishedAt) - new Date(s.startedAt)) / 1000);
   const hh = Math.floor(elapsedSec / 3600);
