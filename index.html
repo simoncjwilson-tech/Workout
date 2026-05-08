@@ -812,6 +812,7 @@
     <button class="menu-item" onclick="showImport()">Import data <span class="arrow">→</span></button>
 
     <div class="section-label" style="margin-top: 24px;">History</div>
+    <button class="menu-item" onclick="showHistoryList()">Browse sessions <span class="arrow">→</span></button>
     <button class="menu-item" onclick="showHistoryStats()">View stats <span class="arrow">→</span></button>
     <button class="menu-item" onclick="confirmClearHistory()" style="color: var(--danger);">Clear history</button>
 
@@ -866,6 +867,29 @@
         <li>Paste both above and tap Save</li>
       </ol>
     </div>
+  </div>
+
+  <!-- ============ HISTORY LIST SCREEN ============ -->
+  <div class="screen" id="screen-history">
+    <div class="top-bar">
+      <button class="icon-btn" onclick="showSettings()" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <h1 style="font-size: 22px;">Sessions</h1>
+      <div style="width: 40px;"></div>
+    </div>
+    <div id="history-list"></div>
+  </div>
+
+  <!-- ============ SESSION DETAIL SCREEN ============ -->
+  <div class="screen" id="screen-session-detail">
+    <div class="top-bar">
+      <button class="icon-btn" onclick="showHistoryList()" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div style="width: 40px;"></div>
+    </div>
+    <div id="session-detail"></div>
   </div>
 
 </div>
@@ -1858,6 +1882,114 @@ function showHistoryStats() {
     ...Object.entries(byRoutine).map(([n, c]) => `  ${n}: ${c}`)
   ].join('\n');
   showModal('Stats', lines, '', [{ label: 'OK', primary: true, action: closeModal }]);
+}
+
+function showHistoryList() {
+  renderHistoryList();
+  showScreen('screen-history');
+}
+
+function renderHistoryList() {
+  const container = document.getElementById('history-list');
+  if (!state.sessions.length) {
+    container.innerHTML = '<div class="empty-state">No sessions yet.</div>';
+    return;
+  }
+  // Sort newest first
+  const sorted = [...state.sessions].sort((a, b) =>
+    new Date(b.finishedAt || b.startedAt) - new Date(a.finishedAt || a.startedAt)
+  );
+  container.innerHTML = sorted.map(s => {
+    const completed = (s.sets || []).filter(x => x.completed);
+    const total = (s.sets || []).length;
+    const volume = Math.round(completed.reduce((acc, x) => acc + (x.actualWeight * x.actualReps), 0));
+    const date = s.finishedAt
+      ? new Date(s.finishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : 'Unknown date';
+    const time = s.finishedAt
+      ? new Date(s.finishedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+      : '';
+    const isEmpty = completed.length === 0;
+    return `
+      <button class="routine-card" onclick="showSessionDetail('${s.id}')" style="margin-bottom: 10px;">
+        <div class="name" style="font-size: 20px;">${escapeHtml(s.routineName || 'Untitled')}${isEmpty ? '<span style="color: var(--text-muted); font-family: \'JetBrains Mono\', monospace; font-size: 11px; font-weight: 400; margin-left: 10px; letter-spacing: 0.1em;">EMPTY</span>' : ''}</div>
+        <div class="meta">
+          <span>${date}${time ? ' · ' + time : ''}</span>
+          <span class="dot"></span>
+          <span>${completed.length}/${total} sets</span>
+          ${volume > 0 ? `<span class="dot"></span><span>${volume} kg</span>` : ''}
+        </div>
+      </button>
+    `;
+  }).join('');
+}
+
+function showSessionDetail(sessionId) {
+  const s = state.sessions.find(x => x.id === sessionId);
+  if (!s) { toast('Session not found'); return; }
+  const container = document.getElementById('session-detail');
+  const completed = (s.sets || []).filter(x => x.completed);
+  const total = (s.sets || []).length;
+  const volume = Math.round(completed.reduce((acc, x) => acc + (x.actualWeight * x.actualReps), 0));
+  const elapsedSec = s.startedAt && s.finishedAt
+    ? (new Date(s.finishedAt) - new Date(s.startedAt)) / 1000
+    : 0;
+  const elapsedMin = Math.floor(elapsedSec / 60);
+  const date = s.finishedAt
+    ? new Date(s.finishedAt).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : 'Unknown date';
+  const time = s.finishedAt
+    ? new Date(s.finishedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  // Group sets by exercise
+  const groups = {};
+  const order = [];
+  (s.sets || []).forEach(set => {
+    if (!groups[set.exerciseId]) { groups[set.exerciseId] = []; order.push(set.exerciseId); }
+    groups[set.exerciseId].push(set);
+  });
+
+  const breakdown = order.map(exId => {
+    const sets = groups[exId];
+    const first = sets[0];
+    const setRows = sets.map(x => {
+      const status = x.completed ? '' : ' <span style="color: var(--text-muted); font-style: italic;">(skipped)</span>';
+      const weight = x.actualWeight > 0 ? `${x.actualWeight}kg × ` : '';
+      return `<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-dim); padding: 3px 0;">Set ${x.setNumber}: ${weight}${x.actualReps} reps${status}</div>`;
+    }).join('');
+    return `
+      <div class="summary-row">
+        <div class="name">${escapeHtml(first.exerciseName)}</div>
+        ${setRows}
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="session-header">
+      <div class="label">Session</div>
+      <h2 style="font-family: 'Fraunces', serif; font-weight: 900; font-size: 36px; line-height: 1; letter-spacing: -0.025em; margin-bottom: 10px; font-variation-settings: 'opsz' 144;">${escapeHtml(s.routineName || 'Untitled')}</h2>
+      <div class="subtitle">${date}${time ? ' · ' + time : ''}</div>
+    </div>
+    <div class="summary-stats">
+      <div class="stat-tile"><div class="label">Time</div><div class="value">${elapsedMin}<span class="unit">m</span></div></div>
+      <div class="stat-tile"><div class="label">Sets</div><div class="value">${completed.length}/${total}</div></div>
+      <div class="stat-tile"><div class="label">Volume</div><div class="value">${volume}<span class="unit">kg</span></div></div>
+    </div>
+    <div class="section-label">Exercises</div>
+    <div class="summary-list">${breakdown || '<div class="empty-state">No sets recorded</div>'}</div>
+    <button class="btn-danger" onclick="confirmDeleteSession('${s.id}')">Delete this session</button>
+  `;
+  showScreen('screen-session-detail');
+}
+
+function confirmDeleteSession(sessionId) {
+  if (!confirm('Delete this session permanently? This cannot be undone.')) return;
+  state.sessions = state.sessions.filter(x => x.id !== sessionId);
+  saveState(state);
+  toast('Session deleted');
+  showHistoryList();
 }
 
 function confirmClearHistory() {
