@@ -600,6 +600,22 @@
     font-size: 11px;
     color: var(--text-dim);
   }
+  .summary-sync-status {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    line-height: 1.55;
+    color: var(--text-dim);
+  }
+  .summary-sync-note {
+    margin: 8px 2px 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-muted);
+  }
 
   /* ============ MODAL ============ */
   .modal-backdrop {
@@ -752,7 +768,7 @@
       <input type="text" id="edit-subtitle" placeholder="e.g. Chest · Triceps" autocapitalize="words">
     </div>
     <div class="field">
-      <span class="field-label">Muscle group (for Craft sync)</span>
+      <span class="field-label">Muscle group</span>
       <select id="edit-muscle-group" style="width:100%; padding:12px 14px; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; font-family:'Fraunces',serif; font-size:16px; color:var(--text); -webkit-appearance:none; appearance:none;">
         <option value="">— None —</option>
         <option value="Upper Body">Upper Body</option>
@@ -787,10 +803,12 @@
     <div class="section-label">Exercises</div>
     <div class="summary-list" id="summary-list"></div>
 
-    <div class="section-label" style="margin-top: 20px;">Sync to Craft</div>
+    <div class="section-label" style="margin-top: 20px;">Save &amp; access</div>
+    <div class="summary-sync-status" id="summary-sync-status" role="status">Saved in Lift</div>
+    <p class="summary-sync-note">Norse imports the cloud copy through the scheduled fitness sync.</p>
     <div class="editor-actions">
-      <button class="btn-secondary" onclick="copySummary()">Copy for Craft</button>
-      <button class="btn-secondary" onclick="openCraftTracker()">Open Tracker</button>
+      <button class="btn-secondary" onclick="copySummary()">Copy workout</button>
+      <button class="btn-secondary" onclick="openNorseHealth()">Open Norse Health</button>
     </div>
     <button class="btn-primary" onclick="dismissSummary()" style="width:100%; margin-top:14px; padding:14px;">Done</button>
   </div>
@@ -819,7 +837,7 @@
 
     <div class="section-label" style="margin-top: 24px;">About</div>
     <div style="padding: 14px 16px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6;">
-      <div>Lift v1.2 — Cloud Sync</div>
+      <div>Lift v1.3 — Norse Fitness</div>
       <div id="storage-info" style="margin-top: 6px;"></div>
     </div>
   </div>
@@ -1083,6 +1101,7 @@ function schedulePush() {
   pushTimeout = setTimeout(async () => {
     const res = await pushToGist();
     if (!res.ok) console.warn('Gist push failed:', res.reason);
+    renderSummarySyncStatus();
   }, 800); // small debounce
 }
 
@@ -1625,6 +1644,21 @@ function renderSummary() {
       </div>
     `;
   }).join('');
+  renderSummarySyncStatus();
+}
+
+function summarySyncText() {
+  if (!syncEnabled()) return 'Saved locally · Cloud backup not configured';
+  if (syncConfig.pendingPush) return 'Saved locally · Cloud backup needs retry';
+  const savedAt = state.lastSavedAt ? new Date(state.lastSavedAt).getTime() : 0;
+  const pushedAt = syncConfig.lastPushAt ? new Date(syncConfig.lastPushAt).getTime() : 0;
+  if (!pushedAt || savedAt > pushedAt) return 'Saved locally · Cloud backup pending';
+  return `Saved locally · Cloud backup synced ${fmtRelativeDate(syncConfig.lastPushAt)}`;
+}
+
+function renderSummarySyncStatus() {
+  const el = document.getElementById('summary-sync-status');
+  if (el) el.textContent = summarySyncText();
 }
 
 function dismissSummary() {
@@ -1719,7 +1753,7 @@ ${backupJson}
 `;
 
   navigator.clipboard.writeText(payload).then(() => {
-    toast('Copied — paste into Claude');
+    toast('Copied — paste into Odin');
   }).catch(() => {
     showModal('Copy manually', 'Couldn\'t access clipboard. Copy the text below:', payload, [
       { label: 'Done', primary: true, action: closeModal }
@@ -1736,9 +1770,8 @@ function inferMuscleGroup(routineName) {
   return '';
 }
 
-function openCraftTracker() {
-  // Fixed deeplink to the user's Fitness Tracker doc
-  window.location.href = 'craftdocs://open?blockId=2DEE8D4B-DD23-4C62-9DBD-E3804A56CC4F&spaceId=d16fb396-2215-0be5-0d97-645c25b1d84a';
+function openNorseHealth() {
+  window.location.href = 'https://simons-mac-mini.taild24ef5.ts.net/static/norse-os/mobile/health.html';
 }
 
 // ============================================================================

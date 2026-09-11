@@ -4,8 +4,8 @@ A custom workout / strength-training tracker for iOS, built because off-the-shel
 apps didn't fit how Simon plans, adapts, and logs gym sessions. Runs as a
 standalone PWA added to the iOS home screen.
 
-**Live:** https://simoncjwilson-tech.github.io/workout/
-**Current version:** Lift v1.2 — Cloud Sync
+**Live:** https://simoncjwilson-tech.github.io/Workout/
+**Current version:** Lift v1.3 — Norse Fitness
 
 ## Stack & architecture
 - Single self-contained `index.html` (HTML/CSS/JS, no build step, no framework).
@@ -21,10 +21,12 @@ standalone PWA added to the iOS home screen.
 - Units: metric, kg only.
 - Routine "adapt" means both — tweak today's session only, or save changes back to
   the template (per-change toggle).
-- Health sync: Apple Health was the intended target via a Shortcut-mediated
-  clipboard handoff; deferred, not a direct binding in v1.2.
-- Craft as longer-term backend: workflow-mediated (Shortcut + Claude in the loop),
-  not a direct API binding — a static HTML page cannot call the Craft MCP server.
+- Apple Health: not connected. Lift is a PWA and has no direct HealthKit binding.
+  Any future Shortcut/native bridge is a separate opt-in write path and must
+  handle duplicate workouts explicitly.
+- Norse OS: the private Gist is read by Odin's scheduled fitness sync. New Lift
+  sessions are appended to the file-native Fitness log, which Norse Health reads.
+  Craft is retired as a destination.
 
 ## Screens
 - `screen-home` — saved routines with last-completed date, "+ New routine", Quick
@@ -36,7 +38,8 @@ standalone PWA added to the iOS home screen.
   ring/bar; inline edit; completed exercises collapse and next auto-expands.
 - `screen-session-detail`
 - `screen-summary` — total time, total volume (Σ weight × reps), per-exercise actual
-  vs planned, skipped sets.
+  vs planned, skipped sets; honest local/Gist status; neutral copy fallback; link
+  to Norse Health.
 - `screen-history` — past sessions.
 - `screen-settings` — Export all data, Import data, Configure sync.
 - `screen-sync` — Cloud Sync config (see below).
@@ -77,12 +80,14 @@ Incline Dumbbell Press, Chest Fly, Push-Ups (to failure), Tricep Pushdown.
 - No auto-progression logic — next-weight suggestion was discussed but not built;
   entry is manual.
 - iOS Safari PWA caching is aggressive; updates often need a cache-bust query string.
-- The "Lift v1.0" label bug was corrected to v1.2; the version string is cosmetic only.
+- Norse ingestion is scheduled rather than acknowledged directly by the PWA. The
+  summary may confirm Gist backup, but must not claim that Norse has already imported
+  a session.
 
 ## Build provenance
 Original build conversation: "Custom iOS workout tracking app proposal" —
 https://claude.ai/chat/a6496627-aab8-42a5-8e8f-1ac2d1a8356f
 
 ---
-*This file mirrors the Craft doc "Workout / Lift — App Instructions". The repo is
-the source of truth; keep the two in sync.*
+*This repository is the source of truth for Lift. Craft is a frozen historical
+fallback and is not a write target.*
